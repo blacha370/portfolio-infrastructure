@@ -1,0 +1,103 @@
+version: 2.1
+
+executors:
+  terraform_docker:
+    docker:
+      - image: hashicorp/terraform:light
+    working_directory: ~/project
+
+jobs:
+  checkout:
+    docker:
+      - image: cimg/base:stable-20.04
+    steps:
+      - checkout
+      
+      - persist_to_workspace:
+          root: ~/project
+          paths:
+            - .
+      
+  init:
+    executor: terraform_docker
+    steps:
+      - attach_workspace:
+          at: ~/project
+
+      - run:
+          name: Install tools
+          command: |
+            apk add bash curl
+            git clone https://github.com/tfutils/tfenv.git ~/tfenv
+            ln -snf ~/tfenv/bin/terraform /usr/bin/terraform
+            ln -snf ~/tfenv/bin/tfenv /usr/bin/tfenv
+          
+      - run:
+          name: Init
+          command: |
+            tfenv install $(cat .terraform-version)
+            tfenv use $(cat .terraform-version)
+            terraform init
+              
+      - persist_to_workspace:
+          root: ~/project
+          paths:
+            - .
+
+  plan:
+    executor: terraform_docker
+    steps:
+      - attach_workspace:
+          at: ~/project     
+
+      - run:
+          name: Terraform plan
+          command: |
+            terraform init
+            terraform plan -input=false -out=tfplan 
+      
+      - persist_to_workspace:
+          root: ~/project
+          paths:
+            - .
+
+  apply:
+    executor: terraform_docker
+    steps:
+      - attach_workspace:
+          at: ~/project
+
+      - run:
+          name: Terraform apply
+          command: |
+            terraform apply -input=false -auto-approve tfplan
+
+workflows:
+  terraform:
+    jobs:
+      - checkout
+
+      - init:
+          requires:
+            - checkout
+      
+      - plan:
+          requires: 
+            - init
+      
+      - hold:
+          requires:
+            - plan
+          type: approval
+          filters:
+            branches:
+              only:
+                - main
+        
+      - apply:
+          requires:
+            - hold
+          filters:
+            branches:
+              only:
+                - main
