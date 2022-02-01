@@ -61,6 +61,17 @@ jobs:
           paths:
             - .
 
+  apply:
+    executor: terraform_docker
+    steps:
+      - attach_workspace:
+          at: ~/project
+
+      - run:
+          name: Terraform apply
+          command: |
+            terraform apply -input=false -auto-approve tfplan
+
 workflows:
   terraform:
     jobs:
@@ -74,3 +85,19 @@ workflows:
           requires: 
             - init
       
+      - hold:
+          requires:
+            - plan
+          type: approval
+          filters:
+            branches:
+              only:
+                - main
+        
+      - apply:
+          requires:
+            - hold
+          filters:
+            branches:
+              only:
+                - main
