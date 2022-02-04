@@ -18,3 +18,7 @@ resource "aws_s3_bucket_policy" "frontend_bucket_policy" {
   bucket = module.s3_frontend_bucket.s3_bucket_id
   policy = data.aws_iam_policy_document.s3_policy_allow_cloudfront.json
 }
+
+output "bucket_name" {
+  value = module.s3_frontend_bucket.s3_bucket_id 
+}
